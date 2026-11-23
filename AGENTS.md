@@ -131,8 +131,23 @@ with the gombit the control plane pins and fails on any difference
   cookie as `X-CSRF-Token` on every state-changing request (login included),
   and refreshes an expired session once.
 - The editor's unit tests stub `fetch` with real `Response`s
-  (`src/test/http.ts`), so a login against a real control plane is the check
-  that the transport still works.
+  (`src/test/http.ts`), so they can't prove the transport. The Playwright
+  suite does (`controlplane/web/e2e`, `make web-e2e`). In Chromium, against the
+  Go server on a migrated Postgres, it:
+  - signs in through the editor's form and reloads;
+  - adds a resource and a date field, and checks the committed spec;
+  - signs out, and checks both halves of it: Chromium expired the session
+    cookies, and the server no longer accepts the old access cookie.
+
+  It fails on any page or console error, any failed load, and any 4xx or 5xx
+  response, the SPA's own assets included. The one exception is the session
+  check's 401, and only while signed out. When a step fails, the failure lists
+  what went wrong on the page first. The server is a built binary started in an
+  empty directory under `env -i`, with only the variables the config writes
+  out, and the migrations are applied the same way. So neither a local `.env`
+  nor the shell (a libpq `PG*` variable included) can change what it runs
+  against. `npm run typecheck` checks the suite and its config
+  (`tsconfig.node.json`).
 
 The repo is **two Go modules**. The root module
 (`github.com/gombit-dev/gombit-forge`) is the compiler and stays gombit-free —
@@ -396,6 +411,7 @@ make race          # go test ./... -race
 make e2e           # toolchain lane: real gombit + atlas + Docker + node; any skip = failure
 make cp-test       # control-plane tests (needs atlas + Docker; cp-test-short skips all Postgres tests)
 make web           # editor SPA: typecheck + build + unit tests
+make web-e2e       # editor in Chromium against a real control plane (Docker, atlas, Playwright)
 make cover         # coverage summary
 make golden        # rewrite the canonical-JSON golden file (deliberate only)
 make skills-check  # .claude and .cursor skill trees must match byte for byte
@@ -406,8 +422,9 @@ CI does not run `make all` verbatim. On push to `main` and on every PR it runs
 `cp-vet`, `cp-build` and `cp-test-short` for the control plane; an `e2e` job
 (`make e2e-compiler` and `make e2e-controlplane`, with the pinned gombit, Atlas,
 Docker and node installed); a `web` job (`web-install`, `web-check`,
-`web-build`, `web-test`, `contract-check`); and an informational `govulncheck`
-job that does not gate the merge.
+`web-build`, `web-test`, `contract-check`); a `web-e2e` job (`make web-e2e`,
+with Atlas and Playwright's Chromium installed); and an informational
+`govulncheck` job that does not gate the merge.
 
 The `e2e` job's two steps pipe `go test -json` through
 `internal/toolchaintest/noskip`. It logs every top-level test with its time,

@@ -152,6 +152,51 @@ jobs:
         run: |
           make install-gombit
           make contract-check
+  # The editor in a real browser against a real control plane (`make web-e2e`):
+  # the Go server on a Postgres with the committed migrations, and the built
+  # SPA. The `web` job's unit tests stub fetch, so the cookie session, the CSRF
+  # double-submit and the generated client's requests are only proven here.
+  web-e2e:
+    name: Editor end-to-end (Playwright)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: controlplane/go.mod
+          cache: true
+          cache-dependency-path: controlplane/go.sum
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: controlplane/web/package-lock.json
+
+      - uses: ./.github/actions/install-atlas
+
+      - name: Install
+        run: make web-install
+
+      - name: Install Chromium
+        working-directory: controlplane/web
+        run: npx playwright install --with-deps chromium
+
+      - name: Editor end-to-end
+        run: make web-e2e
+
+      - name: Keep the Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: |
+            controlplane/web/playwright-report
+            controlplane/web/test-results
+          retention-days: 7
+
 # Informational, not a gate (mirrors gombit-docs' CI). The vulnerabilities
   # govulncheck surfaces are overwhelmingly in the pinned Go standard library
   # (fixed by a toolchain patch bump, not by any application change here);
