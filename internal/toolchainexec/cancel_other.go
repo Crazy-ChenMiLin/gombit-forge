@@ -2,7 +2,14 @@
 
 package toolchainexec
 
-import "os/exec"
+import (
+	"context"
+	"os/exec"
+)
 
-// CommandContext cancels the direct process. WaitDelay bounds pipe draining.
-func configureCancellation(*exec.Cmd) {}
+func combinedOutput(ctx context.Context, dir, name string, args ...string) ([]byte, error) {
+	cmd := exec.CommandContext(ctx, name, args...)
+	cmd.Dir = dir
+	cmd.WaitDelay = outputDrainDelay
+	return cmd.CombinedOutput()
+}
